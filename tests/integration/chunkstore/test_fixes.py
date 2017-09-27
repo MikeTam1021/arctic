@@ -54,3 +54,29 @@ def test_compression(chunkstore_lib):
     chunkstore_lib.append('test', df2)
     read = chunkstore_lib.read('test')
     assert_frame_equal(read, pd.concat([df, df2], ignore_index=True))
+
+
+def test_rewrite(chunkstore_lib):
+    """
+    Issue 427
+    incorrectly storing and updating metadata. dataframes without an index
+    have no "index" field in their metadata, so updating existing 
+    metadata does not remove the index field. 
+    Also, metadata was incorrectly being stored. symbol, start, and end 
+    are the index for the collection, but metadata was being
+    stored without an index (so it was defaulting to null,null,null)
+    """
+    date_range = pd.date_range(start=datetime(2017, 5, 1, 1), periods=8, freq='6H')
+
+    df = DataFrame(data={'something': [100, 200, 300, 400, 500, 600, 700, 800]},
+                   index=DatetimeIndex(date_range, name='date'))
+
+
+    chunkstore_lib.write('test', df, chunk_size='D')
+
+    df2 = DataFrame(data={'something': [100, 200, 300, 400, 500, 600, 700, 800],
+                          'date': date_range})
+
+    chunkstore_lib.write('test', df2, chunk_size='D')
+    ret = chunkstore_lib.read('test')
+    assert_frame_equal(ret, df2)
